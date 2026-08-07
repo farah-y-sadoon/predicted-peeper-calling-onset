@@ -80,7 +80,7 @@ var readingText = ui.Label(
 );
  
 var instructionText = ui.Label(
-  'Click any pixel for its full time series. Use the chart menu to download CSV.',
+  'Click any pixel or specify coordinates for a full time series. Use the chart menu to download CSV.',
   {fontSize: '12px', color: '#666', margin: '8px 0 4px 0'}
 );
  
@@ -122,13 +122,45 @@ var buildLegend = function() {
 };
  
 // Controls
+//// Display year labels
 var yearLabel = ui.Label('Year: 1950', {
   fontSize: '14px', fontWeight: 'bold', margin: '12px 0 4px 0'
 });
- 
+
 var yearSlider = ui.Slider({
   min: 1950, max: 2025, step: 1, value: 1950,
   style: {stretch: 'horizontal', margin: '0 0 12px 0'}
+});
+
+//// Coordinate search
+var searchLabel = ui.Label('Or enter coordinates:', {
+  fontSize: '12px', fontWeight: 'bold', margin: '8px 0 4px 0'
+});
+
+var latBox = ui.Textbox({placeholder: 'Lat (43.00)', style: {stretch: 'horizontal'}});
+var lonBox = ui.Textbox({placeholder: 'Lon (-75.50)', style: {stretch: 'horizontal'}});
+var searchRow = ui.Panel([latBox, lonBox], ui.Panel.Layout.flow('horizontal'));
+
+var searchStatus = ui.Label('', {fontSize: '11px', color: '#b2182b', margin: '2px 0'});
+
+var searchButton = ui.Button({
+  label: 'Go',
+  style: {stretch: 'horizontal', margin: '4px 0'},
+  onClick: function() {
+    var lat = parseFloat(latBox.getValue());
+    var lon = parseFloat(lonBox.getValue());
+    if (isNaN(lat) || isNaN(lon)) {
+      searchStatus.setValue('Enter numeric coordinates.');
+      return;
+    }
+    if (lat < 40 || lat > 46 || lon < -81 || lon > -71) {
+      searchStatus.setValue('Outside the study area.');
+      return;
+    }
+    searchStatus.setValue('');
+    map.centerObject(ee.Geometry.Point([lon, lat]), 9);
+    showSeries({lon: lon, lat: lat});
+  }
 });
  
 var chartPanel = ui.Panel({style: {margin: '0'}});
@@ -143,6 +175,8 @@ var showYear = function(year) {
 };
  
 var showSeries = function(coords) {
+  latBox.setValue(coords.lat.toFixed(4), false);
+  lonBox.setValue(coords.lon.toFixed(4), false);
   chartPanel.clear();
   chartPanel.add(ui.Label('Loading…', {fontSize: '12px', color: '#666'}));
  
@@ -185,6 +219,10 @@ mainPanel.add(legendBar);
 mainPanel.add(yearLabel);
 mainPanel.add(yearSlider);
 mainPanel.add(instructionText);
+mainPanel.add(searchLabel);
+mainPanel.add(searchRow);
+mainPanel.add(searchButton);
+mainPanel.add(searchStatus);
 mainPanel.add(chartPanel);
 mainPanel.add(sourcesHeader);
 mainPanel.add(sourcesText);
