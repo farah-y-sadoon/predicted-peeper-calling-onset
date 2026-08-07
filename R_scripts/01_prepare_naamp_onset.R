@@ -1,15 +1,14 @@
-# Model Validation Against Lovett 2013 Results with North American AmphibMP Data
+# Prepare North American Amphibian Monitoring Program (NAAMP) Data for Model Validation
+# Get nearest NAAMP site to Lovett's study site (2013)
+# Use nearest NAAMP site to download predicted DFC values from GEE
 
 # Load Packages ----
 library(tidyverse)
 library(dplyr)
 library(lubridate)
-library(lmerTest)
-library(ggeffects)
 library(sf)
 
-# Prepare NAAMP Data for Analysis ----------------------------------------------
-## Data import -----------------------------------------------------------------
+# Data import -----------------------------------------------------------------
 
 runs <- read_csv("data_raw/Runs.csv")
 stops <- read_csv("data_raw/Stops.csv")
@@ -17,7 +16,7 @@ counts <- read_csv("data_raw/Counts.csv")
 species <- read_csv("data_raw/Species.csv")
 coords <- read_csv("data_raw/Coordinates.csv")
 
-## Get onset of calling --------------------------------------------------------
+# Get onset of calling --------------------------------------------------------
 # Add julian date
 runs2 <- runs %>%
   mutate(
@@ -33,7 +32,7 @@ counts2 <- counts %>%
     by = "RunID"
   )
 
-## Test ------------------------------------------------------------------------
+# Test ------------------------------------------------------------------------
 
 # Calculate onset for every species, route, year, and threshold
 onset_route <- counts2 %>%
@@ -64,7 +63,7 @@ onset_route <- purrr::map_dfr(thresholds, function(thresh){
 
 head(onset_route)
 
-## Quality control -------------------------------------------------------------
+# Quality control -------------------------------------------------------------
 # if species werent detected, they were not written down. so if the run happened and something called but not the other species, then it shoudl be 0
 
 # all surveys that occurred
@@ -229,7 +228,7 @@ onset_route_qc %>%
     onset3 = sum(!is.na(onset_3))
   )
 
-## Organize for downstream analysis --------------------------------------------
+# Organize for downstream analysis --------------------------------------------
 # tidy for plotting and further analysis
 onset_long <- onset_route_qc %>%
   pivot_longer(
@@ -280,6 +279,3 @@ closest_route <- peeper_routes_sf[closest_index, ] # Route 610323 POINT (-73.776
 
 # calculate distance between Lovett's site and closest point
 closest_route_dist <- st_distance(target_geom, closest_route) # 4447.991m (4.448km)
-
-
-
