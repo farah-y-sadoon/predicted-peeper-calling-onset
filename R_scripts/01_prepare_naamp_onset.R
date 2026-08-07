@@ -1,8 +1,10 @@
+# ==============================================================================
 # Prepare North American Amphibian Monitoring Program (NAAMP) Data for Model Validation
 # Get nearest NAAMP site to Lovett's study site (2013)
 # Use nearest NAAMP site to download predicted DFC values from GEE
+# ==============================================================================
 
-# Load Packages ----
+# Load Packages ----------------------------------------------------------------
 library(tidyverse)
 library(dplyr)
 library(lubridate)
@@ -279,3 +281,6 @@ closest_route <- peeper_routes_sf[closest_index, ] # Route 610323 POINT (-73.776
 
 # calculate distance between Lovett's site and closest point
 closest_route_dist <- st_distance(target_geom, closest_route) # 4447.991m (4.448km)
+
+# Write peepers dataset to file for downstream use
+write_csv(peepers, "data_processed/naamp_peepers_onset.csv")
