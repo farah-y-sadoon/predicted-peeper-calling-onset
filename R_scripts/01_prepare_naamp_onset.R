@@ -1,7 +1,6 @@
 # ==============================================================================
-# Prepare North American Amphibian Monitoring Program (NAAMP) Data for Model Validation
-# Get nearest NAAMP site to Lovett's study site (2013)
-# Use nearest NAAMP site to download predicted DFC values from GEE
+# Prepare North American Amphibian Monitoring Program (NAAMP) Data for Modelling
+# Variation in Calling Onset Across NAAMP Study Range 
 # ==============================================================================
 
 # Load Packages ----------------------------------------------------------------
@@ -33,37 +32,6 @@ counts2 <- counts %>%
       select(RunID, RouteNumber, SurveyYear, DOY, RunNumber, QuizScore, UnifiedProtocol),
     by = "RunID"
   )
-
-# Test ------------------------------------------------------------------------
-
-# Calculate onset for every species, route, year, and threshold
-onset_route <- counts2 %>%
-  group_by(Species, RouteNumber, SurveyYear) %>%
-  summarise(
-    onset_1 = if(any(CallingIndex >= 1))
-      min(DOY[CallingIndex >= 1]) else NA_real_,
-    onset_2 = if(any(CallingIndex >= 2))
-      min(DOY[CallingIndex >= 2]) else NA_real_,
-    onset_3 = if(any(CallingIndex >= 3))
-      min(DOY[CallingIndex >= 3]) else NA_real_,
-    .groups = "drop"
-  )
-thresholds <- c(1, 2, 3)
-
-onset_route <- purrr::map_dfr(thresholds, function(thresh){
-  
-  counts2 %>%
-    filter(CallingIndex >= thresh) %>%
-    group_by(Species, RouteNumber, SurveyYear) %>%
-    summarise(
-      onset_DOY = min(DOY),
-      .groups = "drop"
-    ) %>%
-    mutate(threshold = thresh)
-  
-})
-
-head(onset_route)
 
 # Quality control -------------------------------------------------------------
 # if species werent detected, they were not written down. so if the run happened and something called but not the other species, then it shoudl be 0
@@ -239,11 +207,11 @@ onset_long <- onset_route_qc %>%
     values_to = "onset_DOY"
   )
 
-# select only peepers
+# select only peepers at first onset
 peepers <- onset_long %>%
   filter(Species == "Pseudacris crucifer") %>% 
   select(RouteNumber, SurveyYear, intensity, onset_DOY) %>% 
-  filter(intensity %in% c('onset_1', 'onset_2', 'onset_3'), 
+  filter(intensity == 'onset_1', 
          !is.na(onset_DOY))
 
 # get centroid for each route's coordinates 
@@ -262,25 +230,13 @@ peepers <- peepers %>%
   filter(!is.na(lat), 
          !is.na(lon))
 
-# define Lovett 2013 coordinates for study site and create spatial feature
-lovett_site <- list(lon  = -(73 + (44.90 / 60)),
-                    lat  = 41 + (51.01 / 60))
-
-target_geom <- st_sfc(st_point(c(lovett_site$lon, lovett_site$lat)), crs = 4326)
-
-# extract only coordinates for peeper routes, create spatial features and find the point closest to Lovett's site
-peeper_route_coords <- peepers %>% 
-  select(RouteNumber, lat, lon) %>% 
-  distinct()
-
-peeper_routes_sf <- st_as_sf(peeper_route_coords, coords = c("lon", "lat"), crs = 4326)
-
-# find NAAMP route closest to Lovett's site
-closest_index <- st_nearest_feature(st_sfc(target_geom), peeper_routes_sf)
-closest_route <- peeper_routes_sf[closest_index, ] # Route 610323 POINT (-73.77666 41.81619)
-
-# calculate distance between Lovett's site and closest point
-closest_route_dist <- st_distance(target_geom, closest_route) # 4447.991m (4.448km)
+peepers %>% count(RouteNumber) %>% count(n)
 
 # Write peepers dataset to file for downstream use
 write_csv(peepers, "data_processed/naamp_peepers_onset.csv")
+
+# Select only relevant columns for GEE extraction
+naamp_route_coords <- peepers %>% 
+  select(RouteNumber, lat, lon)
+write_csv(naamp_route_coords, "data_processed/naamp_route_coords.csv")
+
