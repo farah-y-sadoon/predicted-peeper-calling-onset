@@ -30,8 +30,8 @@ var searchDays = 150; // search through end of June
 // ===== CONFIGURE CHUNKS =====
 // GEE can only handle a handful of years at a time with hourly ERA5.
 // Start with 9 years; narrow further if tasks fail.
-var chunkStartYear = 1997;
-var chunkEndYear = 2005;
+var chunkStartYear = 2006;
+var chunkEndYear = 2015;
  
 // ===== LOGIC TO GET PREDICTED DFC =====
 // Following Lovett (2013): accumulate GDD above 3°C from Feb 1
