@@ -34,8 +34,8 @@ var searchDays = 150; // search through end of June
 var scale = 1000;     // Daymet native resolution
  
 // ===== CONFIGURE CHUNKS =====
-var chunkStartYear = 1997;
-var chunkEndYear = 2005;
+var chunkStartYear = 2006;
+var chunkEndYear = 2015;
  
 // ===== LOGIC TO GET PREDICTED DFC =====
 // Following Lovett (2013): accumulate GDD above 3 C from Feb 1
