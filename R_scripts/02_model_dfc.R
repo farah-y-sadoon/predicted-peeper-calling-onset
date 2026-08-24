@@ -1,5 +1,5 @@
 # ==============================================================================
-# Modelling NAAMP Peeper Calling Onset with Lovett (2013) Predicted DFC
+# Modelling NAAMP Peeper Calling Onset with Lovett (2013) TS3 - Predicted DFC 
 # ==============================================================================
 
 # Load Packages ----------------------------------------------------------------
@@ -16,7 +16,7 @@ observed <- read_csv("data_processed/naamp_peepers_onset.csv")
 predicted1 <- read_csv("data_processed/naamp_route_predicted_dfc_1997_2005.csv")
 predicted2 <- read_csv("data_processed/naamp_route_predicted_dfc_2006_2015.csv")
 
-## Predicted DFC from Daymet (~1km resolution, 1km2)
+## Predicted DFC from Daymet (~1km resolution, ~1km2)
 predicted_daymet1 <- read_csv("data_processed/naamp_route_predicted_dfc_daymet_1997_2005.csv")
 predicted_daymet2 <- read_csv("data_processed/naamp_route_predicted_dfc_daymet_2006_2015.csv")
 
@@ -32,12 +32,18 @@ obs_pred_dfc <- observed %>%
   janitor::clean_names() %>% 
   rename(observed_dfc = "onset_doy", 
          predicted_dfc = "first") %>% 
-  mutate(lat_bin = case_when(lat >= 45 ~ "45", 
-                             lat >= 40 ~ "40", 
-                             lat >= 35 ~ "35", 
-                             lat >= 30 ~ "30"), 
-         lat_centred = scale(lat, scale = FALSE), 
-         lon_centred = scale(lon, scale = FALSE))
+  mutate(
+    # Create ordered latitude bins safely
+    lat_bin = cut(
+      lat, 
+      breaks = c(-Inf, 30, 35, 40, 45, Inf),
+      labels = c("<30", "30-35", "35-40", "40-45", "≥45"),
+      right = FALSE  # Includes lower bound: [30, 35)
+    ),
+    # Drop matrix attributes created by scale()
+    lat_centred = as.numeric(scale(lat, scale = FALSE)), 
+    lon_centred = as.numeric(scale(lon, scale = FALSE))
+  )
 
 ## Predicted Daymet
 predicted_daymet <- bind_rows(predicted_daymet1, predicted_daymet2) %>% 
@@ -50,56 +56,190 @@ obs_pred_dfc_daymet <- observed %>%
   janitor::clean_names() %>% 
   rename(observed_dfc = "onset_doy", 
          predicted_dfc = "first") %>% 
-  mutate(lat_bin = case_when(lat >= 45 ~ "45", 
-                             lat >= 40 ~ "40", 
-                             lat >= 35 ~ "35", 
-                             lat >= 30 ~ "30"), 
-         lat_centred = scale(lat, scale = FALSE), 
-         lon_centred = scale(lon, scale = FALSE))
+  mutate(
+    # Create ordered latitude bins safely
+    lat_bin = cut(
+      lat, 
+      breaks = c(-Inf, 30, 35, 40, 45, Inf),
+      labels = c("<30", "30-35", "35-40", "40-45", "≥45"),
+      right = FALSE  # Includes lower bound: [30, 35)
+    ),
+    # Drop matrix attributes created by scale()
+    lat_centred = as.numeric(scale(lat, scale = FALSE)), 
+    lon_centred = as.numeric(scale(lon, scale = FALSE))
+  )
 
 # Difference in distribution of predicted DFC in ERA5 Land vs. Daymet
 hist(obs_pred_dfc$predicted_dfc)
 hist(obs_pred_dfc_daymet$predicted_dfc)
+## Looks similar but Daymet predicted DFCs are fewer in the middle and are skewed slightly earlier
 
 sd(obs_pred_dfc$predicted_dfc)
 sd(obs_pred_dfc_daymet$predicted_dfc)
-## Looks like 
+## spread of data is very similar - almost identical ERA5 - 22.686; Daymet 22.330
 
-# Build linear model -----------------------------------------------------------
-# route was not included as a random effect because 74/90 sites in the model are unique (~82%)
-# meaning that pseudoreplication is not a major issue in the data
+# Build linear models ----------------------------------------------------------
+# Excluded 'route' random effect; high site uniqueness (74/90, ~82%) provides insufficient repeated measures to estimate group-level variance
 
-# model with just predicted as predictor for observed calling
+# Model with just TS3 as predictor for observed calling
 mod <- lm(observed_dfc ~ predicted_dfc, data = obs_pred_dfc)
 summary(mod)
+vis_mod <- ggeffects::ggpredict(mod, terms = c("predicted_dfc"))
 
-ggplot(obs_pred_dfc, aes(predicted_dfc, observed_dfc)) +
-  geom_point(size = 3, aes(predicted_dfc, observed_dfc, colour = lat_bin)) +
-  geom_abline(slope = 1, intercept = 0, linetype = "dashed") +
-  geom_smooth(method = "lm") +
-  theme_classic()
-### UPDATE: calculate confidence intervals and plot them manually like in Megan's script
+# Plot
+ggplot() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+  # Raw data points
+  geom_point(
+    data = obs_pred_dfc, 
+    mapping = aes(x = predicted_dfc, y = observed_dfc, color = lat_bin)
+  ) + 
+  # Model 95% Confidence Interval
+  geom_ribbon(
+    data = vis_mod, 
+    mapping = aes(x = x, ymin = conf.low, ymax = conf.high),
+    alpha = 0.3
+  ) +
+  # Model Fitted Line
+  geom_line(
+    data = vis_mod, 
+    mapping = aes(x = x, y = predicted)
+  ) +
+  theme_bw() +
+  theme(
+    text = element_text(size = 12)
+  ) +
+  labs(x = "Predicted DFC Based on TS3", y = "Observed DFC", colour = "Latitude")
 
-# model with survey year as fixed effect
+# Model with survey year as predictor
 mod2 <- lm(observed_dfc ~ predicted_dfc + survey_year, data = obs_pred_dfc)
 summary(mod2)
+vis_mod2 <- ggeffects::ggpredict(mod2, terms = c("survey_year"))
 
-# model with lat and lon as fixed effects
+ggplot() +
+  # Raw data points over time
+  geom_point(
+    data = obs_pred_dfc, 
+    mapping = aes(x = survey_year, y = observed_dfc), 
+    alpha = 0.2
+  ) +
+  # Model 95% CI band for year effect
+  geom_ribbon(
+    data = vis_mod2, 
+    mapping = aes(x = x, ymin = conf.low, ymax = conf.high), 
+    alpha = 0.3
+  ) +
+  # Model line across years (flat line = no systematic year effect)
+  geom_line(
+    data = vis_mod2, 
+    mapping = aes(x = x, y = predicted), 
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Survey Year", 
+    y = "Observed DFC",
+  )
+
+# Model with survey_year as a random effect
+mod_year_random <- lmer(observed_dfc ~ predicted_dfc + (1|survey_year), data = obs_pred_dfc)
+summary(mod_year_random)
+performance::r2(mod_year_random)
+## estimate is stronger when year is included as a random effect
+## conditional R2 0.321, marginal R2 0.219 
+
+# Plot
+year_re <- broom.mixed::tidy(mod_year_random,
+                             effects   = "ran_vals",
+                             conf.int  = TRUE) %>%
+  left_join(
+    obs_pred_dfc %>%
+      count(survey_year) %>%
+      mutate(level = as.character(survey_year)),
+    by = "level"
+  ) %>%
+  mutate(
+    year_label = paste0(level, "  (n = ", n, ")"),
+    year_label = factor(year_label, levels = rev(sort(unique(year_label))))
+  )
+
+ggplot(year_re, aes(x = estimate, y = year_label)) +
+  geom_vline(xintercept = 0, linetype = "dashed", colour = "grey50") +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high), 
+                  size = 0.4) +
+  labs(
+    x = "Deviation from mean calling onset (days)",
+    y = NULL,
+    title = "Interannual variation in calling onset",
+    subtitle = "Year-level random intercepts, sample size shown per year"
+  ) +
+  theme_bw()
+
+# model with lat, lon, and survey_year as a random effect
+mod_year_random2 <- lmer(observed_dfc ~ predicted_dfc + lat_centred + lon_centred + (1 | survey_year), data = obs_pred_dfc)
+summary(mod_year_random2)
+
+## when you include lat and lon with survey year as a random effect, you get a singular fit, meaning that survey_year as a fixed effect does not include any information beyond what is currently included in the model, or there are not enough values per year to separate variance
+
+# model with lat and lon as predictors
 mod3 <- lm(observed_dfc ~ predicted_dfc + survey_year + lat_centred + lon_centred, data = obs_pred_dfc)
 summary(mod3)
-
-ggplot(obs_pred_dfc, aes(lat, observed_dfc)) + 
-  geom_point(size = 2, alpha = 0.5) + 
-  geom_smooth(method = "lm") + 
-  theme_classic()
-### UPDATE: calculate confidence intervals and plot them manually like in Megan's script
-# note that the year effect from mod2 has disappeared - which means this is likely a sampling composition effect rather than an actual year change
+# note that the year effect from mod2 has disappeared - which means this confirms a sampling composition effect rather than an actual systematic year change
 
 # drop survey_year 
 mod4 <- lm(observed_dfc ~ predicted_dfc + lat_centred + lon_centred, data = obs_pred_dfc)
 summary(mod4)
 
-# model with only lat and lon as fixed effects
+# Plot
+vis_mod4 <- ggeffects::ggpredict(mod4, terms = c("predicted_dfc")) 
+
+ggplot() +
+  geom_abline(intercept = 0, slope = 1, linetype = "dashed") + 
+  # Raw data points over time
+  geom_point(
+    data = obs_pred_dfc, 
+    mapping = aes(x = predicted_dfc, y = observed_dfc), 
+    alpha = 0.2
+  ) +
+  # Model 95% CI band for year effect
+  geom_ribbon(
+    data = vis_mod4, 
+    mapping = aes(x = x, ymin = conf.low, ymax = conf.high), 
+    alpha = 0.3
+  ) +
+  # Model line across years (flat line = no systematic year effect)
+  geom_line(
+    data = vis_mod4, 
+    mapping = aes(x = x, y = predicted), 
+    linewidth = 1
+  ) +
+  theme_bw() +
+  labs(
+    x = "Predicted DFC Based on TS3 - with Constant Lat and Lon", 
+    y = "Observed DFC",
+  )
+
+ggplot(obs_pred_dfc, aes(x = lat_centred, y = observed_dfc)) +
+  # Raw observed data points colored by latitude category
+  geom_point(aes(color = lat_cat), size = 2.5, alpha = 0.8) +
+  
+  # TS3-only model fit line (Dark Red)
+  geom_line(aes(y = pred_ts3, linetype = "TS3"), color = "firebrick4", linewidth = 1.2) +
+  
+  # Full spatial model fit line (Dark Blue)
+  geom_line(aes(y = pred_full, linetype = "Full"), color = "navyblue", linewidth = 1.2) +
+  
+  # Theme and styling
+  theme_bw() +
+  labs(
+    title = "Geography Corrects TS3 Overestimation of Calling Onset",
+    x = "Latitude (Centered)",
+    y = "Observed DFC",
+    color = "Latitude",
+    linetype = "Model"
+  )
+
+# model with only lat and lon as predictors
 mod5 <- lm(observed_dfc ~ lat_centred + lon_centred, data = obs_pred_dfc)
 summary(mod5)
 
@@ -107,33 +247,32 @@ summary(mod5)
 AIC(mod, mod2, mod3, mod4, mod5)
 
 # AIC confirms that geography + thermal sum is best model - check to see how much variance is accounted for with ANOVA
-
 anova(mod5, mod4)
+## significant amount of variance accounted for with the inclusion of predicted_dfc - makes sense since slope was significant in model output
 
-# Mod4 is more parsimonious, but the Estimate for predicted_dfc actually shows a negative effect instead of a positive one. This may be due to (1) the lower latitude sites that were shown to have a floor effect - DFC is reached very early after February 1st (start of the thermal sum calculation window), (2), (3), (4)
+# Mod4 is more parsimonious, but the Estimate for predicted_dfc actually shows a negative effect instead of a positive one. This may be due to (1) the lower latitude sites that were shown to have a floor effect - DFC is reached very early after February 1st (start of the thermal sum calculation window), (2) influential observations may be skewing results, (3) there is high collinearity between observations, (4), the ERA5 Land hourly resolution is too coarse, or (5) there 
 
 # (1) Do a sensitivity analysis to see if removing the sites at lat_bin 30 changes the amount of variance explained by the thermal sum (TS3)
 
 mid_obs_pred_dfc <- obs_pred_dfc %>% 
-  filter(lat_bin != 30) %>% 
+  filter(lat_bin != "<30") %>% 
   mutate(lat_centred = scale(lat, scale = FALSE), 
          lon_centred = scale(lon, scale = FALSE))
 
 summary(lm(observed_dfc ~ predicted_dfc + lat_centred + lon_centred, data = mid_obs_pred_dfc))
-
-## Removing the lat-bin 30 sites did not move the estimate much - could be due to highly collinear relationship between the thermal sum value and latitude - so TS3 does predict, but does not add much value beyond what geography already tells us
+## Removing the lat-bin 30 sites did not move the estimate much. Rejected.
 
 # (2) Look for influential observations with Cooks distance
 plot(mod4, which = 5)
 max(cooks.distance(mod4))
 mean(cooks.distance(mod4))
 sum(cooks.distance(mod4) > 4 / nrow(obs_pred_dfc))
-# No points near Cook's D thresholds; max leverage ~0.085 vs mean ~0.009. Rejected.
+## No points near Cook's D thresholds; max leverage ~0.085 vs mean ~0.009. Rejected.
 
 # (3) Assess for collinearity between predictors 
 car::vif(mod4)
 summary(lm(predicted_dfc ~ lat_centred + lon_centred, data = obs_pred_dfc))
-## Interesting that the variance inflation factor doesn't seem to be too high, but still around 75% of variance in predicted_dfc can be reconstructed by lat and lon
+## Interesting that the variance inflation factor doesn't seem to be too high, but still around 75% of variance in predicted_dfc can be reconstructed by lat and lon. Potential reason.
 
 # (4) Climate product resolution effects
 # Use predicted DFC calculated from Daymet interpolated climate dataset with ~1km resolution to see whether the TS3 index estimate changes
@@ -143,4 +282,11 @@ summary(lm(predicted_dfc ~ lat_centred + lon_centred, data = obs_pred_dfc_daymet
 
 # does the finer resolution change the effectiveness of the thermal index
 summary(lm(observed_dfc ~ predicted_dfc + lat_centred + lon_centred, data = obs_pred_dfc_daymet))
-## predicted_dfc still produces a negative estimate, finer resolution likely not the cause if routes are farther apart, ERA5 still produces the same result
+## predicted_dfc still produces a negative estimate, finer resolution likely not the cause if routes are farther apart, ERA5 still produces the same result. Rejected
+
+# Model geography + TS3 with an interaction term
+mod6 <- lm(observed_dfc ~ predicted_dfc * lat_centred + lon_centred, data = obs_pred_dfc)
+summary(mod6)
+anova(mod4, mod6)
+## looks like interaction is not significant, meaning that TS3's effect does not seem to differ when changing latitudes - this may just be an artifact of sampling - worth discussing!
+
