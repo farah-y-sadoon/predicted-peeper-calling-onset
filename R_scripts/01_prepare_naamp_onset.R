@@ -1,6 +1,6 @@
 # ==============================================================================
 # Prepare North American Amphibian Monitoring Program (NAAMP) Data for Modelling
-# Variation in Calling Onset Across NAAMP Study Range 
+# Variation in Calling Onset Across NAAMP Study Range
 # ==============================================================================
 
 # Load Packages ----------------------------------------------------------------
@@ -56,7 +56,7 @@ calling <- counts2 %>%
     .groups = "drop"
   )
 
-# add non-detections as zero  
+# add non-detections as zero
 # summarize by route run (collapse stops)
 
 route_run <- survey_grid %>%
@@ -68,7 +68,7 @@ route_run <- survey_grid %>%
     MaxCalling = replace_na(MaxCalling, 0)
   )
 
-route_run %>% count(MaxCalling) #working because now we see a bunch of 0s
+route_run %>% count(MaxCalling) # working because now we see a bunch of 0s
 
 # The onset is the first survey where calling reaches a threshold
 # provided that at least one previous survey had a lower calling index
@@ -87,70 +87,55 @@ onset_route <- route_run %>%
     days_since_prev = DOY - lag(DOY)
   ) %>%
   summarise(
-    
     onset_1 = {
       x <- which(MaxCalling >= 1 & prev_call < 1)
-      if(length(x)>0) DOY[min(x)] else NA_real_
+      if (length(x) > 0) DOY[min(x)] else NA_real_
     },
-    
     gap_1 = {
       x <- which(MaxCalling >= 1 & prev_call < 1)
-      if(length(x)>0) days_since_prev[min(x)] else NA_real_
+      if (length(x) > 0) days_since_prev[min(x)] else NA_real_
     },
-    
     quiz_1 = {
       x <- which(MaxCalling >= 1 & prev_call < 1)
-      if(length(x)>0) QuizScore[min(x)] else NA
+      if (length(x) > 0) QuizScore[min(x)] else NA
     },
-    
     protocol_1 = {
       x <- which(MaxCalling >= 1 & prev_call < 1)
-      if(length(x)>0) UnifiedProtocol[min(x)] else NA
+      if (length(x) > 0) UnifiedProtocol[min(x)] else NA
     },
-    
-    
     onset_2 = {
       x <- which(MaxCalling >= 2 & prev_call < 2)
-      if(length(x)>0) DOY[min(x)] else NA_real_
+      if (length(x) > 0) DOY[min(x)] else NA_real_
     },
-    
     gap_2 = {
       x <- which(MaxCalling >= 2 & prev_call < 2)
-      if(length(x)>0) days_since_prev[min(x)] else NA_real_
+      if (length(x) > 0) days_since_prev[min(x)] else NA_real_
     },
-    
     quiz_2 = {
       x <- which(MaxCalling >= 2 & prev_call < 2)
-      if(length(x)>0) QuizScore[min(x)] else NA
+      if (length(x) > 0) QuizScore[min(x)] else NA
     },
-    
     protocol_2 = {
       x <- which(MaxCalling >= 2 & prev_call < 2)
-      if(length(x)>0) UnifiedProtocol[min(x)] else NA
+      if (length(x) > 0) UnifiedProtocol[min(x)] else NA
     },
-    
-    
     onset_3 = {
       x <- which(MaxCalling >= 3 & prev_call < 3)
-      if(length(x)>0) DOY[min(x)] else NA_real_
+      if (length(x) > 0) DOY[min(x)] else NA_real_
     },
-    
     gap_3 = {
       x <- which(MaxCalling >= 3 & prev_call < 3)
-      if(length(x)>0) days_since_prev[min(x)] else NA_real_
+      if (length(x) > 0) days_since_prev[min(x)] else NA_real_
     },
-    
     quiz_3 = {
       x <- which(MaxCalling >= 3 & prev_call < 3)
-      if(length(x)>0) QuizScore[min(x)] else NA
+      if (length(x) > 0) QuizScore[min(x)] else NA
     },
-    
     protocol_3 = {
       x <- which(MaxCalling >= 3 & prev_call < 3)
-      if(length(x)>0) UnifiedProtocol[min(x)] else NA
+      if (length(x) > 0) UnifiedProtocol[min(x)] else NA
     },
-    
-    .groups="drop"
+    .groups = "drop"
   )
 head(onset_route)
 
@@ -169,7 +154,6 @@ onset_route_qc <- onset_route %>%
     onset_1_raw = onset_1,
     onset_2_raw = onset_2,
     onset_3_raw = onset_3,
-    
     onset_1 = ifelse(gap_1 <= 30, onset_1, NA_real_),
     onset_2 = ifelse(gap_2 <= 30, onset_2, NA_real_),
     onset_3 = ifelse(gap_3 <= 30, onset_3, NA_real_)
@@ -211,33 +195,41 @@ onset_long <- onset_route_qc %>%
 
 # select only peepers at first onset
 peepers <- onset_long %>%
-  filter(Species == "Pseudacris crucifer") %>% 
-  select(RouteNumber, SurveyYear, intensity, onset_DOY) %>% 
-  filter(intensity == 'onset_1', 
-         !is.na(onset_DOY))
+  filter(Species == "Pseudacris crucifer") %>%
+  select(RouteNumber, SurveyYear, intensity, onset_DOY) %>%
+  filter(
+    intensity == "onset_1",
+    !is.na(onset_DOY)
+  )
 
-# get centroid for each route's coordinates 
-route_coords <- coords %>% 
-  group_by(RouteNumber) %>% 
-  summarise(lat = mean(lat), 
-            lon = mean(lon),
-            .groups = "drop")
+# get centroid for each route's coordinates
+route_coords <- coords %>%
+  group_by(RouteNumber) %>%
+  summarise(
+    lat = mean(lat),
+    lon = mean(lon),
+    .groups = "drop"
+  )
 
 # join peepers with route coordinates
-peepers <- peepers %>% 
+peepers <- peepers %>%
   left_join(route_coords, by = c("RouteNumber"))
 
 # filter out NA values
-peepers <- peepers %>% 
-  filter(!is.na(lat), 
-         !is.na(lon))
+peepers <- peepers %>%
+  filter(
+    !is.na(lat),
+    !is.na(lon)
+  )
 
-peepers %>% count(RouteNumber) %>% count(n)
+peepers %>%
+  count(RouteNumber) %>%
+  count(n)
 
 # Write peepers dataset to file for downstream use
 write_csv(peepers, "data_processed/naamp_peepers_onset.csv")
 
 # Select only relevant columns for GEE extraction
-naamp_route_coords <- peepers %>% 
+naamp_route_coords <- peepers %>%
   select(RouteNumber, lat, lon)
 write_csv(naamp_route_coords, "data_processed/naamp_route_coords.csv")
