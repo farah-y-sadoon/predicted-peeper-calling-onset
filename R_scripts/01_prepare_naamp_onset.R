@@ -5,16 +5,12 @@
 
 # Load Packages ----------------------------------------------------------------
 library(tidyverse)
-library(dplyr)
 library(lubridate)
-library(sf)
 
 # Data import -----------------------------------------------------------------
 
 runs <- read_csv("data_raw/Runs.csv")
-stops <- read_csv("data_raw/Stops.csv")
 counts <- read_csv("data_raw/Counts.csv")
-species <- read_csv("data_raw/Species.csv")
 coords <- read_csv("data_raw/Coordinates.csv")
 
 # Get onset of calling --------------------------------------------------------
@@ -37,11 +33,6 @@ counts2 <- counts %>%
 # if species werent detected, they were not written down. so if the run happened and something called but not the other species, then it shoudl be 0
 
 # all surveys that occurred
-survey_grid <- runs2 %>%
-  distinct(RouteNumber, SurveyYear, RunID, DOY) %>%
-  crossing(
-    Species = unique(counts2$Species)
-  )
 survey_grid <- runs2 %>%
   select(
     RunID,
@@ -198,6 +189,17 @@ onset_route_qc %>%
     onset3 = sum(!is.na(onset_3))
   )
 
+# Look at what max calling is for each of the onset occurrences
+route_run %>%
+  filter(Species == "Pseudacris crucifer") %>%
+  arrange(RouteNumber, SurveyYear, DOY) %>%
+  group_by(RouteNumber, SurveyYear) %>%
+  mutate(prev_call = lag(MaxCalling)) %>%
+  filter(MaxCalling >= 1, prev_call < 1) %>%
+  slice_min(DOY, n = 1) %>%
+  ungroup() %>%
+  count(MaxCalling)
+
 # Organize for downstream analysis --------------------------------------------
 # tidy for plotting and further analysis
 onset_long <- onset_route_qc %>%
@@ -239,4 +241,3 @@ write_csv(peepers, "data_processed/naamp_peepers_onset.csv")
 naamp_route_coords <- peepers %>% 
   select(RouteNumber, lat, lon)
 write_csv(naamp_route_coords, "data_processed/naamp_route_coords.csv")
-
